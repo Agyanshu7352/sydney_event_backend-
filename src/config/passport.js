@@ -30,26 +30,26 @@ passport.use(
         let user = await User.findOne({ googleId: profile.id });
 
         if (user) {
-          
+
           // Update user info and last login
           user.name = profile.displayName || user.name;
           user.picture = (profile.photos && profile.photos[0] ? profile.photos[0].value : null) || user.picture;
           user.lastLogin = new Date();
           await user.save();
-          
+
           return done(null, user);
         }
 
         let name = profile.displayName;
-        
+
         if (!name && profile.name) {
           name = `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim();
         }
-        
+
         if (!name && profile.emails && profile.emails[0]) {
           name = profile.emails[0].value.split('@')[0];
         }
-        
+
         if (!name) {
           name = 'User'; // Last fallback
         }
@@ -72,32 +72,33 @@ passport.use(
         console.log('================================\n');
 
 
-        
+
         user = await User.create({
           googleId: profile.id,
           email: email,
           name: name,
-          picture: picture,  // ✅ Changed from 'avatar' to 'picture'
+          picture: picture,
+          authProvider: 'google',
           lastLogin: new Date(),
-        });        
-        
+        });
+
         done(null, user);
-        
+
       } catch (error) {
         console.error('\n❌ ERROR in Google Strategy:');
         console.error('Error name:', error.name);
         console.error('Error message:', error.message);
-        
+
         if (error.errors) {
           console.error('Validation errors:', error.errors);
           Object.keys(error.errors).forEach(key => {
             console.error(`  - ${key}: ${error.errors[key].message}`);
           });
         }
-        
+
         console.error('Full error:', error);
         console.error('===============================\n');
-        
+
         done(error, null);
       }
     }

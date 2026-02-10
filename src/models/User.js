@@ -1,12 +1,11 @@
-// src/models/User.js - COMPLETE FIXED VERSION
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   googleId: {
     type: String,
-    required: [true, 'Google ID is required'],
     unique: true,
-    index: true,
+    sparse: true, // Allows null for email/password users
   },
   email: {
     type: String,
@@ -15,15 +14,29 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     trim: true,
   },
+  password: {
+    type: String,
+    minlength: 6,
+    select: false, // Don't include password by default in queries
+  },
   name: {
     type: String,
     required: [true, 'Name is required'],
     trim: true,
-    default: 'User', 
+    default: 'User',
   },
-  picture: {  
+  picture: {
     type: String,
     default: null,
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local',
+  },
+  isEmailVerified: {
+    type: Boolean,
+    default: false,
   },
   lastLogin: {
     type: Date,
@@ -32,26 +45,44 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['user', 'admin'],
-    default: 'admin', // Set to 'admin' so users can access dashboard
+    default: 'admin',
   },
 }, {
-  timestamps: true, // Adds createdAt and updatedAt
+  timestamps: true,
 });
 
-// Index for faster queries
-userSchema.index({ email: 1 });
-userSchema.index({ googleId: 1 });
+// Hash password before saving
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password') || !this.password) return next();
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
-// Method to get user's safe data (without sensitive fields)
-userSchema.methods.toSafeObject = function() {
+// Compare password method
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Safe object method
+userSchema.methods.toSafeObject = function () {
   return {
     id: this._id,
     email: this.email,
     name: this.name,
-    picture: this.picture,  // ✅ Changed from 'avatar' to 'picture'
+    picture: this.picture,
     role: this.role,
   };
 };
+
+// Indexes
+userSchema.index({ email: 1 });
+userSchema.index({ googleId: 1 });
 
 const User = mongoose.model('User', userSchema);
 
