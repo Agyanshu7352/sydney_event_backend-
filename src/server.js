@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
-// const MongoStore = require('connect-mongo')(session);
+const MongoStore = require('connect-mongo');
 const passport = require('./config/passport');
 const connectDB = require('./config/database');
 const schedulerService = require('./services/scheduler.service');
@@ -17,6 +17,9 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 
 // Initialize Express app
 const app = express();
+
+// Trust proxy - REQUIRED for Render (secure cookies behind reverse proxy)
+app.set('trust proxy', 1);
 
 // Connect to MongoDB
 connectDB();
@@ -37,7 +40,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your-super-secret-key-change-this',
   resave: false,
   saveUninitialized: false,
-  // No store - uses memory (fine for development)
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    ttl: 24 * 60 * 60, // 1 day
+    autoRemove: 'native',
+  }),
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
