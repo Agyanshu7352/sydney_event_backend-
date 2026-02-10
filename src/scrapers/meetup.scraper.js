@@ -1,5 +1,6 @@
 // Meetup scraper
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 const Logger = require('../utils/logger');
 const { SCRAPE_CONFIG } = require('../config/constants');
 
@@ -9,6 +10,35 @@ class MeetupScraper {
     this.baseUrl = 'https://www.meetup.com/find/?location=au--sydney&source=EVENTS';
   }
 
+  async getBrowserConfig() {
+    // Check if running on Render or other production environment
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+
+    if (isProduction) {
+      // Production configuration (Render)
+      return {
+        args: [
+          ...chromium.args,
+          '--no-sandbox',
+          '--disable-setuid-sandbox'
+        ],
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless
+      };
+    } else {
+      // Local development configuration
+      return {
+        executablePath: process.env.CHROME_PATH ||
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // macOS
+        // For Windows: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+        // For Linux: '/usr/bin/google-chrome'
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      };
+    }
+  }
+
   async scrape() {
     let browser;
     const scrapedEvents = [];
@@ -16,10 +46,8 @@ class MeetupScraper {
     try {
       Logger.scrapeStart(this.name);
 
-      browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
+      const browserConfig = await this.getBrowserConfig();
+      browser = await puppeteer.launch(browserConfig);
 
       const page = await browser.newPage();
       await page.setUserAgent(SCRAPE_CONFIG.USER_AGENT);
@@ -41,7 +69,7 @@ class MeetupScraper {
           try {
             const linkEl = card.querySelector('a[href*="/events/"]');
             const eventUrl = linkEl?.href;
-            
+
             const titleEl = card.querySelector('[data-testid="event-title"]');
             const title = titleEl?.textContent?.trim();
 
@@ -87,15 +115,15 @@ class MeetupScraper {
             scrapedEvents.push(normalizedEvent);
           }
         } catch (error) {
-          Logger.warning('Failed to normalize meetup event', { 
+          Logger.warning('Failed to normalize meetup event', {
             title: event.title,
-            error: error.message 
+            error: error.message
           });
         }
       }
 
-      Logger.scrapeEnd(this.name, { 
-        total: scrapedEvents.length 
+      Logger.scrapeEnd(this.name, {
+        total: scrapedEvents.length
       });
 
     } catch (error) {
@@ -142,13 +170,13 @@ class MeetupScraper {
   parseDate(dateText) {
     try {
       if (!dateText) return null;
-      
+
       const now = new Date();
       const date = new Date(dateText);
-      
+
       if (isNaN(date.getTime())) return null;
       if (date < now) return null;
-      
+
       return date;
     } catch (error) {
       return null;

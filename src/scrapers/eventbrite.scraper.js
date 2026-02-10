@@ -1,4 +1,5 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 const Logger = require('../utils/logger');
 const { SCRAPE_CONFIG } = require('../config/constants');
 
@@ -8,14 +9,31 @@ class EventbriteScraper {
     this.baseUrl = 'https://www.eventbrite.com.au/d/australia--sydney/events/';
   }
 
-  async scrape() {
-    let browser;
-    const scrapedEvents = [];
+  async getBrowserConfig() {
+    // Check if running on Render or other production environment
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
 
-    try {
-      Logger.scrapeStart(this.name);
-
-      browser = await puppeteer.launch({
+    if (isProduction) {
+      // Production configuration (Render)
+      return {
+        args: [
+          ...chromium.args,
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-dev-shm-usage'
+        ],
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless
+      };
+    } else {
+      // Local development configuration
+      return {
+        executablePath: process.env.CHROME_PATH || 
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // macOS
+          // For Windows: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+          // For Linux: '/usr/bin/google-chrome'
         headless: 'new',
         args: [
           '--no-sandbox',
@@ -23,7 +41,19 @@ class EventbriteScraper {
           '--disable-blink-features=AutomationControlled',
           '--disable-dev-shm-usage'
         ]
-      });
+      };
+    }
+  }
+
+  async scrape() {
+    let browser;
+    const scrapedEvents = [];
+
+    try {
+      Logger.scrapeStart(this.name);
+
+      const browserConfig = await this.getBrowserConfig();
+      browser = await puppeteer.launch(browserConfig);
 
       const page = await browser.newPage();
 
