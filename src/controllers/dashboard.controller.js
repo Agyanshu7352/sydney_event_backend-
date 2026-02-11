@@ -28,7 +28,10 @@ const getDashboardEvents = async (req, res) => {
     const query = {};
 
     if (city) query['venue.city'] = city;
-    if (status) query.status = status;
+    if (status) {
+      // Handle both single value and array of statuses
+      query.status = Array.isArray(status) ? { $in: status } : status;
+    }
     if (category) query.category = category;
     if (source) query['source.name'] = source;
 
@@ -92,31 +95,31 @@ const getDashboardStats = async (req, res) => {
     const stats = await Promise.all([
       // Total events
       Event.countDocuments({ startDate: { $gte: now } }),
-      
+
       // By status
       Event.countDocuments({ status: EVENT_STATUS.NEW }),
       Event.countDocuments({ status: EVENT_STATUS.UPDATED }),
       Event.countDocuments({ status: EVENT_STATUS.INACTIVE }),
       Event.countDocuments({ 'imported.status': true }),
-      
+
       // Recent additions
-      Event.countDocuments({ 
+      Event.countDocuments({
         firstScraped: { $gte: thirtyDaysAgo },
         startDate: { $gte: now }
       }),
-      
+
       // Email captures
       EmailCapture.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
-      
+
       // Unique email subscribers
       EmailCapture.distinct('email', { consent: true }).then(emails => emails.length),
-      
+
       // By source
       Event.aggregate([
         { $match: { startDate: { $gte: now } } },
         { $group: { _id: '$source.name', count: { $sum: 1 } } }
       ]),
-      
+
       // By category
       Event.aggregate([
         { $match: { startDate: { $gte: now } } },
