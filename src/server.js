@@ -46,10 +46,13 @@ app.use(session({
     autoRemove: 'native',
   }),
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    // Force secure cookies on Render, or in production
+    secure: process.env.NODE_ENV === 'production' || process.env.RENDER === 'true',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    // SameSite=None is required for cross-site cookies (Frontend <-> Backend)
+    // blocking this prevents auth from working
+    sameSite: (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true') ? 'none' : 'lax',
   },
   name: 'sessionId',
 }));

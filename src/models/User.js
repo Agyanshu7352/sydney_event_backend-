@@ -81,8 +81,7 @@ userSchema.methods.toSafeObject = function () {
 };
 
 // Indexes
-userSchema.index({ email: 1 });
-userSchema.index({ googleId: 1 });
+// Email and GoogleID already have unique: true which creates indexes automatically
 
 const User = mongoose.model('User', userSchema);
 
